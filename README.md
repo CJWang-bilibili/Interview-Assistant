@@ -79,9 +79,37 @@ python  main.py       # Windows
 ### Linux（推荐）
 在「音频设备」下拉框中选择带 **`[系统音频]`** 前缀的设备（PulseAudio/PipeWire monitor），即可捕获腾讯会议、钉钉等软件播放的声音。
 
-### Windows
-在「音频设备」中选择 **「立体声混音 (Stereo Mix)」**。
-若列表中没有该选项，请右键任务栏音量图标 → 声音设置 → 录制 → 右键空白处 → 显示已禁用设备，然后启用「立体声混音」。
+### Windows（推荐：VB-CABLE）
+
+**Step 1 — 安装 VB-CABLE 驱动**
+下载并以管理员身份运行 `VBCABLE_Driver_Pack45.exe`：
+https://vb-audio.com/Cable/
+
+安装完成后系统会新增两个虚拟设备：
+- `CABLE Input` — 虚拟扬声器（让会议软件往这里输出）
+- `CABLE Output` — 虚拟麦克风（本工具从这里读取）
+
+**Step 2 — 设置会议软件扬声器**
+打开腾讯会议 / 钉钉 / Zoom 等，将「扬声器」改为 **CABLE Input**。
+
+**Step 3 — 启动本工具**
+运行 `python main.py`，「音频设备」下拉框会自动选中 **`[VB-CABLE] CABLE Output`**，直接点「开始监听」即可。
+
+---
+
+> ⚠️ **使用 CABLE Input 作为扬声器后没有声音？**
+>
+> 这是因为音频流进了虚拟管道，没有转发到真实扬声器。解决方法：
+>
+> 1. 右键任务栏音量图标 → **声音**（或打开控制面板 → 声音）
+> 2. 切到 **录制** 选项卡
+> 3. 找到 **CABLE Output** → 右键 → **属性**
+> 4. 切到 **侦听** 标签页
+> 5. 勾选 **侦听此设备**
+> 6. 「通过此设备播放」选你的 **真实耳机 / 扬声器**
+> 7. 点击 **确定**
+>
+> 设置完成后，音频会同时送到：CABLE Output（本工具识别）+ 你的真实扬声器（你能听到）。
 
 ### macOS
 安装 [BlackHole](https://github.com/ExistentialAudio/BlackHole) 虚拟音频设备，并在会议软件中将输出路由到 BlackHole，再在本工具中选择 BlackHole 作为输入设备。

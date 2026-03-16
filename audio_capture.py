@@ -3,8 +3,17 @@ audio_capture.py
 ----------------
 Captures system audio (loopback) from video conferencing software.
 
+推荐方案 (Windows): VB-CABLE Virtual Audio Device
+  安装: https://vb-audio.com/Cable/ (VBCABLE_Driver_Pack45.exe)
+  安装后会新增两个设备：
+    • CABLE Input  (虚拟扬声器) — 在会议软件中将「扬声器」设置为此设备
+    • CABLE Output (虚拟麦克风) — 本工具从此设备读取音频
+
+  ⚠️  使用 CABLE Input 作为扬声器后听不到声音的解决方法：
+  控制面板 → 声音 → 录制 → CABLE Output → 属性
+  → 侦听 → 勾选「侦听此设备」→ 选择你的真实耳机/扬声器 → 确定
+
 On Linux:  Select a PulseAudio/PipeWire "monitor" source.
-On Windows: Select "Stereo Mix" or WASAPI loopback device.
 On macOS:  Install BlackHole (https://github.com/ExistentialAudio/BlackHole)
            then select it as the input device.
 """
@@ -44,11 +53,15 @@ class AudioCapture:
             if dev["max_input_channels"] < 1:
                 continue
             name: str = dev["name"]
+            name_lower = name.lower()
+            # VB-CABLE Output is the virtual mic we read from.
+            # Also keep Linux monitor sources and other loopback devices.
+            is_vbcable = "cable output" in name_lower
             is_monitor = (
-                "monitor" in name.lower()
-                or "loopback" in name.lower()
-                or "stereo mix" in name.lower()
-                or "what u hear" in name.lower()
+                is_vbcable
+                or "monitor" in name_lower
+                or "loopback" in name_lower
+                or "what u hear" in name_lower
             )
             devices.append(
                 {
@@ -57,6 +70,7 @@ class AudioCapture:
                     "channels": dev["max_input_channels"],
                     "sample_rate": int(dev["default_samplerate"]),
                     "is_monitor": is_monitor,
+                    "is_vbcable": is_vbcable,
                 }
             )
         return devices
@@ -65,8 +79,13 @@ class AudioCapture:
     def preferred_device(devices: List[Dict]) -> Optional[int]:
         """
         Return the id of the best default device for meeting audio capture.
-        Prefers monitor/loopback sources; falls back to first available.
+        Priority: VB-CABLE Output > other monitors > first available.
         """
+        # 1st priority: VB-CABLE Output
+        for dev in devices:
+            if dev.get("is_vbcable"):
+                return dev["id"]
+        # 2nd priority: any monitor/loopback
         for dev in devices:
             if dev["is_monitor"]:
                 return dev["id"]
