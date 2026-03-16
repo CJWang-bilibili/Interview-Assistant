@@ -357,16 +357,23 @@ class InterviewAssistantGUI:
             self._device_map = {}
             names: List[str] = []
             for dev in value:
-                label = (
-                    f"[系统音频] {dev['name']}" if dev["is_monitor"] else dev["name"]
-                )
+                if dev.get("is_vbcable"):
+                    label = f"[VB-CABLE] {dev['name']}"
+                elif dev["is_monitor"]:
+                    label = f"[系统音频] {dev['name']}"
+                else:
+                    label = dev["name"]
                 names.append(label)
                 self._device_map[label] = dev["id"]
             self._device_combo["values"] = names
             if names:
-                # Prefer system-audio monitors
+                # Priority: VB-CABLE > other system-audio monitors > first
                 preferred = next(
-                    (n for n in names if n.startswith("[系统音频]")), names[0]
+                    (n for n in names if n.startswith("[VB-CABLE]")),
+                    next(
+                        (n for n in names if n.startswith("[系统音频]")),
+                        names[0],
+                    ),
                 )
                 self._device_combo.set(preferred)
 
