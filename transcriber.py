@@ -28,9 +28,33 @@ import numpy as np
 from typing import Callable, Optional
 
 try:
+    import torch as _torch
+    _TORCH_AVAILABLE = True
+except ImportError:
+    _torch = None  # type: ignore
+    _TORCH_AVAILABLE = False
+
+try:
     from funasr import AutoModel
 except ImportError:
     AutoModel = None  # type: ignore
+
+
+def _detect_device() -> str:
+    """Return 'cuda' if a CUDA GPU is available, else 'cpu'."""
+    if _TORCH_AVAILABLE and _torch.cuda.is_available():
+        return "cuda"
+    return "cpu"
+
+
+def _gpu_info() -> str:
+    """Return a human-readable GPU description, or empty string on CPU."""
+    if not (_TORCH_AVAILABLE and _torch.cuda.is_available()):
+        return ""
+    idx = _torch.cuda.current_device()
+    name = _torch.cuda.get_device_name(idx)
+    total_mb = _torch.cuda.get_device_properties(idx).total_memory // (1024 ** 2)
+    return f"{name} ({total_mb} MB)"
 
 
 # ---------------------------------------------------------------------------
@@ -96,9 +120,18 @@ class Transcriber:
         """
         Download (first run) and load the FunASR model pipeline.
         Call this in a background thread — first run downloads ~300 MB.
+        Automatically uses CUDA/GPU acceleration when available.
         """
         _cb = progress_callback or (lambda _: None)
         model_id = _MODELS.get(self.language, _MODELS["zh"])
+
+        device = _detect_device()
+        gpu_desc = _gpu_info()
+        if device == "cuda":
+            _cb(f"🖥️ 检测到 GPU：{gpu_desc}，将使用 CUDA 加速推理")
+        else:
+            _cb("💻 未检测到 CUDA GPU，使用 CPU 推理（速度较慢）")
+
         _cb(f"正在加载模型 FunASR [{model_id}]，首次运行需下载约 300 MB…")
 
         try:
@@ -108,6 +141,7 @@ class Transcriber:
                 punc_model="ct-punc",          # punctuation restoration
                 log_level="ERROR",             # suppress verbose logs
                 disable_update=True,
+                device=device,                 # "cuda" or "cpu"
             )
         except Exception:
             # Fallback: load without optional models if punc/vad unavailable
@@ -116,10 +150,12 @@ class Transcriber:
                 model=model_id,
                 log_level="ERROR",
                 disable_update=True,
+                device=device,
             )
 
         self._loaded = True
-        _cb("✅ FunASR 模型加载完成，可以开始监听")
+        accel = f"GPU ({gpu_desc})" if device == "cuda" else "CPU"
+        _cb(f"✅ FunASR 模型加载完成 [{accel}]，可以开始监听")
 
     @property
     def is_loaded(self) -> bool:
