@@ -23,8 +23,8 @@ echo 运行方式：
 echo   python main.py
 echo.
 echo 提示：
-echo   在「音频设备」中选择「立体声混音 (Stereo Mix)」以捕获会议音频。
-echo   如未找到该设备，请在 Windows 声音设置中启用「立体声混音」。
-echo   首次运行会自动下载 Whisper base 模型（约 150 MB）。
+echo   推荐安装 VB-CABLE 后在「音频设备」中选择 [VB-CABLE] CABLE Output。
+echo   首次运行会自动下载 FunASR Paraformer 模型（约 300 MB）。
+echo   语音识别引擎: FunASR Paraformer（中文精度大幅优于 Whisper）。
 echo.
 pause

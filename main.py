@@ -26,9 +26,13 @@ def _check_deps() -> None:
     except ImportError:
         missing.append("sounddevice")
     try:
-        import faster_whisper  # noqa: F401
+        import funasr  # noqa: F401
     except ImportError:
-        missing.append("faster-whisper")
+        missing.append("funasr")
+    try:
+        import modelscope  # noqa: F401
+    except ImportError:
+        missing.append("modelscope")
     if missing:
         print(
             "\n❌  缺少依赖包，请先运行安装脚本：\n"
@@ -44,7 +48,7 @@ class InterviewAssistant:
 
     def __init__(self) -> None:
         self._audio = AudioCapture()
-        self._transcriber = Transcriber(model_size="base", language="zh")
+        self._transcriber = Transcriber(language="zh")
         self._gui = InterviewAssistantGUI()
 
         # Wire GUI callbacks
@@ -63,7 +67,7 @@ class InterviewAssistant:
     # ------------------------------------------------------------------
 
     def _load_model_bg(self) -> None:
-        """Load faster-whisper in a background thread."""
+        """Load FunASR Paraformer in a background thread."""
         try:
             self._transcriber.load_model(
                 progress_callback=self._gui.set_status

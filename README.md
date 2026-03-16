@@ -1,6 +1,6 @@
 # Interview Assistant · 面试助手
 
-实时捕获腾讯会议、钉钉等视频会议软件的系统音频，使用本地 **faster-whisper** 模型将语音转为文字，并通过置顶浮窗实时展示，支持一键复制到历史记录。
+实时捕获腾讯会议、钉钉等视频会议软件的系统音频，使用本地 **FunASR Paraformer** 模型将语音转为文字，并通过置顶浮窗实时展示，支持一键复制到历史记录。
 
 ---
 
@@ -13,7 +13,7 @@
 | 🗑 删除 | 清空当前识别区 |
 | 🪟 窗口置顶 | 浮窗默认置顶，随时可见 |
 | 🌐 多语言 | 支持中文、英文及自动检测 |
-| 💻 纯本地 | faster-whisper 完全离线运行，无需 API Key |
+| 💻 纯本地 | FunASR Paraformer 完全离线运行，无需 API Key |
 
 ---
 
@@ -135,7 +135,9 @@ Interview-Assistant/
 
 | 包 | 用途 |
 |----|------|
-| [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | 本地语音识别（CTranslate2 加速） |
+| [FunASR](https://github.com/modelscope/FunASR) | 本地语音识别（阿里达摩院，中文最优） |
+| [ModelScope](https://github.com/modelscope/modelscope) | 模型下载管理 |
+| [PyTorch](https://pytorch.org/) | FunASR 推理后端 |
 | [sounddevice](https://python-sounddevice.readthedocs.io/) | 音频流捕获 |
 | numpy | 音频数据处理 |
 | tkinter | GUI（Python 标准库） |
@@ -145,10 +147,13 @@ Interview-Assistant/
 ## 常见问题
 
 **Q: 识别延迟多久？**
-A: 在说话停顿 1~2 秒后触发识别，CPU 上 base 模型约 1~3 秒出结果。
+A: 说话停顿 1~2 秒后触发，CPU 上 Paraformer 约 0.5~2 秒出结果，比 Whisper 快。
 
-**Q: 支持同声传译吗？**
-A: 目前是分段识别，适合会后复盘或笔记整理。实时逐字流式输出需要更大模型。
+**Q: 支持英文吗？**
+A: 支持。在语言下拉框选 `en` 自动切换为 `paraformer-en`，选 `auto` 使用 SenseVoice 多语言模型。
 
-**Q: 可以换更精准的模型吗？**
-A: 在 `main.py` 中修改 `model_size="small"` 或 `"medium"` 即可，精度更高但速度更慢。
+**Q: 首次下载慢怎么办？**
+A: 模型从 ModelScope（阿里云）下载，国内速度较快。下载后完全离线运行。
+
+**Q: 相比 Whisper 提升多少？**
+A: 中文字错率 Paraformer 约 3~5%，Whisper base 约 15~20%，提升显著。
