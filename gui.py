@@ -52,6 +52,13 @@ C = {
     "mauve":    "#cba6f7",
 }
 
+# Model display name → internal language key
+_LANG_DISPLAY = {
+    "中文 (paraformer-zh)":  "zh",
+    "英文 (paraformer-en)":  "en",
+    "多语言 (SenseVoice)":   "auto",
+}
+
 
 class InterviewAssistantGUI:
     """Main application window."""
@@ -59,14 +66,15 @@ class InterviewAssistantGUI:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("Interview Assistant · 面试助手")
-        self.root.geometry("660x740")
-        self.root.minsize(500, 560)
+        self.root.geometry("660x920")
+        self.root.minsize(500, 700)
         self.root.configure(bg=C["base"])
         self.root.attributes("-topmost", True)
 
         # Public callbacks – set by main.py before calling run()
-        self.on_start: Optional[Callable[[], None]] = None
-        self.on_stop:  Optional[Callable[[], None]] = None
+        self.on_start:        Optional[Callable[[], None]] = None
+        self.on_stop:         Optional[Callable[[], None]] = None
+        self.on_reload_model: Optional[Callable[[], None]] = None
 
         # Internal state
         self._is_listening = False
@@ -144,14 +152,23 @@ class InterviewAssistantGUI:
         )
         self._device_combo.pack(side=tk.LEFT, padx=(6, 14))
 
-        tk.Label(row1, text="语言:", bg=C["base"], fg=C["text"],
+        tk.Label(row1, text="语音模型:", bg=C["base"], fg=C["text"],
                  font=("Helvetica", 10)).pack(side=tk.LEFT)
         self._lang_var = tk.StringVar(value="zh")
-        ttk.Combobox(
-            row1, textvariable=self._lang_var,
-            values=["zh", "en", "auto"],
-            width=6, state="readonly",
-        ).pack(side=tk.LEFT, padx=(6, 0))
+        _default_model = next(k for k, v in _LANG_DISPLAY.items() if v == "zh")
+        self._model_display_var = tk.StringVar(value=_default_model)
+        _mc = ttk.Combobox(
+            row1, textvariable=self._model_display_var,
+            values=list(_LANG_DISPLAY.keys()),
+            width=22, state="readonly",
+        )
+        _mc.pack(side=tk.LEFT, padx=(6, 0))
+        _mc.bind(
+            "<<ComboboxSelected>>",
+            lambda _: self._lang_var.set(
+                _LANG_DISPLAY.get(self._model_display_var.get(), "zh")
+            ),
+        )
 
         row2 = tk.Frame(af, bg=C["base"])
         row2.pack(fill=tk.X, padx=10, pady=(0, 10))
@@ -177,6 +194,9 @@ class InterviewAssistantGUI:
             font=("Helvetica", 9),
         )
         self._status_lbl.pack(side=tk.RIGHT)
+
+        # ── Model & hardware settings ─────────────────────────────────
+        self._build_model_panel()
 
         # ── Current transcription ─────────────────────────────────────
         cf = tk.LabelFrame(
@@ -265,6 +285,73 @@ class InterviewAssistantGUI:
             "sep", foreground=C["surface1"], font=("Helvetica", 7)
         )
 
+    def _build_model_panel(self) -> None:
+        mf = tk.LabelFrame(
+            self.root, text="  模型参数与硬件  ",
+            bg=C["base"], fg=C["mauve"],
+            font=("Helvetica", 10, "bold"),
+            bd=1, relief=tk.GROOVE,
+        )
+        mf.pack(fill=tk.X, padx=14, pady=(0, 6))
+
+        row1 = tk.Frame(mf, bg=C["base"])
+        row1.pack(fill=tk.X, padx=10, pady=(8, 4))
+
+        tk.Label(row1, text="计算设备:", bg=C["base"], fg=C["text"],
+                 font=("Helvetica", 10)).pack(side=tk.LEFT)
+        self._compute_device_var = tk.StringVar(value="cpu")
+        ttk.Combobox(
+            row1, textvariable=self._compute_device_var,
+            values=["cpu", "cuda"],
+            width=6, state="readonly",
+        ).pack(side=tk.LEFT, padx=(6, 16))
+
+        tk.Button(
+            row1, text="↺  重新加载模型",
+            bg=C["mauve"], fg=C["base"],
+            font=("Helvetica", 10, "bold"),
+            relief=tk.FLAT, padx=16, pady=5,
+            cursor="hand2",
+            command=self._on_reload_model,
+        ).pack(side=tk.LEFT)
+
+        row2 = tk.Frame(mf, bg=C["base"])
+        row2.pack(fill=tk.X, padx=10, pady=(0, 4))
+
+        tk.Label(row2, text="静音阈值:", bg=C["base"], fg=C["text"],
+                 font=("Helvetica", 9)).pack(side=tk.LEFT)
+        self._vad_threshold_var = tk.DoubleVar(value=0.012)
+        tk.Scale(
+            row2, from_=0.001, to=0.05, resolution=0.001,
+            orient=tk.HORIZONTAL, length=140,
+            variable=self._vad_threshold_var,
+            bg=C["base"], fg=C["text"], troughcolor=C["surface1"],
+            highlightthickness=0,
+            font=("Helvetica", 8),
+        ).pack(side=tk.LEFT, padx=(4, 18))
+
+        tk.Label(row2, text="静音时长(s):", bg=C["base"], fg=C["text"],
+                 font=("Helvetica", 9)).pack(side=tk.LEFT)
+        self._vad_silence_var = tk.DoubleVar(value=1.2)
+        tk.Scale(
+            row2, from_=0.3, to=3.0, resolution=0.1,
+            orient=tk.HORIZONTAL, length=140,
+            variable=self._vad_silence_var,
+            bg=C["base"], fg=C["text"], troughcolor=C["surface1"],
+            highlightthickness=0,
+            font=("Helvetica", 8),
+        ).pack(side=tk.LEFT, padx=(4, 0))
+
+        row3 = tk.Frame(mf, bg=C["base"])
+        row3.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        self._hw_info_lbl = tk.Label(
+            row3, text="硬件信息检测中…",
+            bg=C["base"], fg=C["overlay"],
+            font=("Helvetica", 9),
+        )
+        self._hw_info_lbl.pack(side=tk.LEFT)
+
     # ------------------------------------------------------------------
     # Public API (called from background threads via the update queue)
     # ------------------------------------------------------------------
@@ -293,9 +380,25 @@ class InterviewAssistantGUI:
     def get_language(self) -> str:
         return self._lang_var.get()
 
+    def get_compute_device(self) -> str:
+        return self._compute_device_var.get()
+
+    def get_vad_threshold(self) -> float:
+        return self._vad_threshold_var.get()
+
+    def get_vad_silence(self) -> float:
+        return self._vad_silence_var.get()
+
+    def set_hw_info(self, text: str) -> None:
+        self._update_q.put(("hw_info", text))
+
     # ------------------------------------------------------------------
     # Button handlers (always on main thread via Tkinter events)
     # ------------------------------------------------------------------
+
+    def _on_reload_model(self) -> None:
+        if self.on_reload_model:
+            self.on_reload_model()
 
     def _toggle_listen(self) -> None:
         if not self._is_listening:
@@ -399,6 +502,9 @@ class InterviewAssistantGUI:
         elif action == "append":
             self._current_box.insert(tk.END, value + "\n")
             self._current_box.see(tk.END)
+
+        elif action == "hw_info":
+            self._hw_info_lbl.configure(text=value)
 
     # ------------------------------------------------------------------
     # Entry point
