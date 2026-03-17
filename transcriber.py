@@ -88,23 +88,25 @@ class Transcriber:
         t.process_chunk(audio_array, my_callback)
     """
 
-    def __init__(self, language: str = "zh"):
+    def __init__(self, language: str = "zh", device: str = "cpu"):
         if AutoModel is None:
             raise ImportError(
                 "funasr is not installed. Run: pip install funasr modelscope"
             )
 
         self.language = language
-        self._model = None
-        self._loaded = False
+        self._device  = device
+        self._model   = None
+        self._loaded  = False
 
         # VAD state
         self._buffer: list[float] = []
         self._silence_frames = 0
         self._speech_frames  = 0
 
-        self._silence_frame_limit = int(SILENCE_SECONDS   / CHUNK_SECONDS)
-        self._min_speech_frames   = int(MIN_SPEECH_SECONDS / CHUNK_SECONDS)
+        self._silence_threshold   = SILENCE_THRESHOLD
+        self._silence_frame_limit = int(SILENCE_SECONDS    / CHUNK_SECONDS)
+        self._min_speech_frames   = int(MIN_SPEECH_SECONDS  / CHUNK_SECONDS)
         self._max_segment_frames  = int(MAX_SEGMENT_SECONDS / CHUNK_SECONDS)
 
         # Serialise transcription jobs (one at a time, FIFO)
@@ -141,7 +143,7 @@ class Transcriber:
                 punc_model="ct-punc",          # punctuation restoration
                 log_level="ERROR",             # suppress verbose logs
                 disable_update=True,
-                device=device,                 # "cuda" or "cpu"
+                device=self._device,
             )
         except Exception:
             # Fallback: load without optional models if punc/vad unavailable
@@ -150,7 +152,7 @@ class Transcriber:
                 model=model_id,
                 log_level="ERROR",
                 disable_update=True,
-                device=device,
+                device=self._device,
             )
 
         self._loaded = True
@@ -178,7 +180,7 @@ class Transcriber:
             return
 
         rms = float(np.sqrt(np.mean(chunk ** 2) + 1e-9))
-        is_speech = rms > SILENCE_THRESHOLD
+        is_speech = rms > self._silence_threshold
 
         if is_speech:
             self._buffer.extend(chunk.tolist())
@@ -240,11 +242,17 @@ class Transcriber:
         Note: requires reload if model needs to change.
         """
         if lang != self.language:
+            old_model = _MODELS.get(self.language)
             self.language = lang
-            # Mark as unloaded so caller knows to reload
-            if _MODELS.get(lang) != _MODELS.get(self.language):
+            # Mark as unloaded if the underlying model changed
+            if _MODELS.get(lang) != old_model:
                 self._loaded = False
                 self._model = None
+
+    def set_vad_params(self, threshold: float, silence_seconds: float) -> None:
+        """Update VAD sensitivity (takes effect immediately, no reload needed)."""
+        self._silence_threshold   = max(0.001, float(threshold))
+        self._silence_frame_limit = max(1, int(float(silence_seconds) / CHUNK_SECONDS))
 
     def reset_vad(self) -> None:
         """Discard accumulated audio (e.g. when user stops listening)."""
